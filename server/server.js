@@ -10,24 +10,58 @@ import ticketRoutes from './routes/ticketRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 
 dotenv.config();
-
 connectDB();
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
-app.use(morgan('dev'));
+// ─── CORS: allow frontend Vercel URL + localhost ───
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  process.env.CLIENT_URL,
+].filter(Boolean);
 
+app.use(cors({
+  origin: (origin, callback) => {
+    // allow requests with no origin (mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS blocked: ${origin}`));
+  },
+  credentials: true
+}));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+if (process.env.NODE_ENV !== 'production') {
+  app.use(morgan('dev'));
+}
+
+// ─── API Routes ───
 app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/reviews', reviewRoutes);
 
+// ─── Health check ───
 app.get('/', (req, res) => {
-  res.send('NeuralEvents API is running...');
+  res.json({ message: 'NeuralEvents API is running ✅', status: 'ok' });
+});
+
+// ─── 404 handler ───
+app.use((req, res) => {
+  res.status(404).json({ message: `Route ${req.originalUrl} not found` });
+});
+
+// ─── Global error handler ───
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal Server Error',
+    stack: process.env.NODE_ENV === 'production' ? null : err.stack
+  });
 });
 
 const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`));
