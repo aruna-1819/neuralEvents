@@ -69,6 +69,31 @@ const ConfettiEffect = () => {
   );
 };
 
+const EventBannerImage = ({ src, alt }) => {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+  const fallback = "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1200&q=80";
+
+  return (
+    <div className="w-full h-full relative bg-[#0e0e16]">
+      {!loaded && !error && (
+        <div className="absolute inset-0 bg-gradient-to-r from-white/[0.02] via-white/[0.08] to-white/[0.02] animate-pulse flex items-center justify-center">
+          <span className="text-[10px] font-mono tracking-widest text-primary/40 uppercase">Streaming Experience Visuals...</span>
+        </div>
+      )}
+      <img 
+        src={error ? fallback : src} 
+        alt={alt} 
+        onLoad={() => setLoaded(true)}
+        onError={() => setError(true)}
+        className={`w-full h-full object-cover transition-all duration-700 ${
+          loaded ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-95 blur-md'
+        }`}
+      />
+    </div>
+  );
+};
+
 const EventDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -411,15 +436,14 @@ const EventDetails = () => {
       className="min-h-screen pt-24 pb-20 relative"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Banner Section */}
         <motion.div 
           initial={{ y: 30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6 }}
-          className="rounded-3xl overflow-hidden mb-12 relative h-96 border border-white/5 shadow-2xl"
+          className="rounded-3xl overflow-hidden mb-12 relative h-96 border border-white/5 shadow-2xl bg-[#0e0e16]"
         >
-          <img src={event.banner} alt={event.title} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent"></div>
+          <EventBannerImage src={event.banner} alt={event.title} />
+          <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent pointer-events-none"></div>
         </motion.div>
 
         {/* Content Section */}
@@ -775,9 +799,9 @@ const EventDetails = () => {
               className="bg-[#101017] border border-white/10 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative"
             >
               {/* Event Header in Payment */}
-              <div className="h-28 relative">
-                <img src={event.banner} alt={event.title} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-[#101017]/90 flex items-end p-5">
+              <div className="h-28 relative bg-[#0e0e16]">
+                <EventBannerImage src={event.banner} alt={event.title} />
+                <div className="absolute inset-0 bg-[#101017]/90 flex items-end p-5 pointer-events-none">
                   <div>
                     <span className="text-[10px] text-primary font-bold tracking-wider uppercase">{event.category}</span>
                     <h3 className="text-xl font-display font-bold text-white truncate max-w-[380px]">{event.title}</h3>
@@ -786,7 +810,7 @@ const EventDetails = () => {
                 {paymentStep !== 'processing' && paymentStep !== 'success' && (
                   <button 
                     onClick={() => setShowPaymentModal(false)}
-                    className="absolute top-4 right-4 bg-black/60 text-white rounded-full p-1.5 hover:bg-black transition-colors cursor-pointer"
+                    className="absolute top-4 right-4 bg-black/60 text-white rounded-full p-1.5 hover:bg-black transition-colors cursor-pointer z-10"
                   >
                     <X className="w-4 h-4" />
                   </button>
