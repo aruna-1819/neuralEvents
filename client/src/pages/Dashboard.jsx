@@ -11,10 +11,12 @@ const Dashboard = () => {
     return <Navigate to="/login" replace />;
   }
 
+  const isAdmin = user.role === 'admin' || user.isAdmin === true;
+
   return (
     <div className="min-h-screen pt-24 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {user.role === 'admin' ? <AdminDashboard /> : <UserDashboard />}
+        {isAdmin ? <AdminDashboard /> : <UserDashboard />}
       </div>
     </div>
   );

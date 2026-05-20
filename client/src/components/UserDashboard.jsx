@@ -1,6 +1,8 @@
 import { useEffect, useState, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
+import { useWishlist } from '../context/WishlistContext';
+import { mockEvents } from '../data/mockEvents';
 import { 
   Ticket, 
   Calendar, 
@@ -60,10 +62,22 @@ const CountdownTimer = ({ targetDate }) => {
 const UserDashboard = () => {
   const { user } = useContext(AuthContext);
   const [activeTab, setActiveTab] = useState('upcoming');
+
+  const formatDate = (dateStr, formatStr) => {
+    try {
+      if (!dateStr) return 'Date TBA';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return 'Date TBA';
+      return format(d, formatStr);
+    } catch {
+      return 'Date TBA';
+    }
+  };
   const [tickets, setTickets] = useState([]);
-  const [savedEvents, setSavedEvents] = useState([]);
+  const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const { wishlistMap, toggleWishlist, isWishlisted } = useWishlist();
 
   // Fetch Tickets/Bookings
   const fetchTickets = async () => {
@@ -83,31 +97,26 @@ const UserDashboard = () => {
     }
   };
 
+  // Fetch all events
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const { data } = await axios.get('/api/events');
+        setAllEvents(data.length > 2 ? data : mockEvents);
+      } catch (error) {
+        setAllEvents(mockEvents);
+      }
+    };
+    fetchEvents();
+  }, []);
+
   useEffect(() => {
     if (user) {
       fetchTickets();
-      
-      // Load saved events from localStorage or seed mock saved events
-      const localSaved = JSON.parse(localStorage.getItem('mockSavedEvents') || '[]');
-      if (localSaved.length === 0) {
-        const demoSaved = [
-          {
-            _id: 'saved1',
-            title: 'Holographic Fashion Week',
-            category: 'Fashion',
-            date: new Date('2026-10-20T19:00:00Z').toISOString(),
-            venue: 'Le Grand Palais, Paris',
-            price: 500,
-            banner: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1000'
-          }
-        ];
-        localStorage.setItem('mockSavedEvents', JSON.stringify(demoSaved));
-        setSavedEvents(demoSaved);
-      } else {
-        setSavedEvents(localSaved);
-      }
     }
   }, [user]);
+
+  const savedEvents = allEvents.filter(e => isWishlisted(e._id));
 
   // Cancel Booking handler
   const handleCancelBooking = (ticketId) => {
@@ -268,7 +277,7 @@ const UserDashboard = () => {
                             <div className="space-y-1.5 text-gray-400 text-xs mb-4">
                               <div className="flex items-center gap-2">
                                 <Calendar size={14} className="text-primary" />
-                                <span>{format(new Date(ticket.event?.date || ''), 'MMMM d, yyyy • h:mm a')}</span>
+                                <span>{formatDate(ticket.event?.date, 'MMMM d, yyyy • h:mm a')}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <MapPin size={14} className="text-primary" />
@@ -351,7 +360,7 @@ const UserDashboard = () => {
                           <div className="space-y-1 text-xs text-gray-400">
                             <div className="flex items-center gap-1.5">
                               <Calendar size={12} />
-                              <span>{format(new Date(ticket.event?.date || ''), 'MMMM d, yyyy')}</span>
+                              <span>{formatDate(ticket.event?.date, 'MMMM d, yyyy')}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                               <MapPin size={12} />
@@ -377,29 +386,49 @@ const UserDashboard = () => {
                 className="space-y-6"
               >
                 <div className="flex items-center gap-2 mb-4">
-                  <Heart className="text-red-500" size={20} />
+                  <Heart className="text-red-500 fill-red-500" size={20} />
                   <h3 className="text-xl font-bold font-display">My Saved Wishlist</h3>
                 </div>
 
                 {savedEvents.length === 0 ? (
-                  <div className="glass-panel p-12 text-center rounded-2xl border border-white/5">
-                    <Heart className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                    <h4 className="text-lg font-medium text-gray-400">No saved events yet</h4>
+                  <div className="glass-panel p-12 text-center rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+                    <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 border border-white/10 relative overflow-hidden">
+                      <Heart className="w-10 h-10 text-gray-500 animate-[pulse_2s_infinite]" />
+                    </div>
+                    <h4 className="text-xl font-bold text-white mb-2">No Saved Events Yet</h4>
+                    <p className="text-gray-500 text-sm max-w-sm mx-auto mb-6">Your wishlist is currently empty. Explore our amazing events and tap the heart icon to save your favorites!</p>
+                    <a 
+                      href="/events" 
+                      className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-[0_0_20px_rgba(139,92,246,0.3)] hover:scale-105 transition-all"
+                    >
+                      Explore Event Catalog
+                    </a>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {savedEvents.map((event) => (
-                      <div key={event._id} className="glass-panel rounded-xl overflow-hidden border border-white/5 flex flex-col group">
+                      <div key={event._id} className="glass-panel rounded-xl overflow-hidden border border-white/5 flex flex-col group relative">
                         <div className="h-32 overflow-hidden relative">
                           <img src={event.banner} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                           <span className="absolute top-2 left-2 bg-primary/95 px-2 py-0.5 rounded text-[10px] font-bold text-white uppercase">{event.category}</span>
+                          
+                          {/* Heart toggle on image to remove */}
+                          <motion.button 
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => toggleWishlist(event)}
+                            className="absolute top-2 right-2 p-1.5 bg-black/60 rounded-full border border-white/10 hover:border-red-500/50 hover:bg-black/80 transition-all cursor-pointer"
+                            title="Remove from wishlist"
+                          >
+                            <Heart size={12} className="fill-red-500 text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+                          </motion.button>
                         </div>
                         <div className="p-4 flex-1 flex flex-col justify-between">
                           <div>
                             <h4 className="font-bold text-base text-white mt-1 group-hover:text-primary transition-colors truncate">{event.title}</h4>
                             <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-2">
                               <Calendar size={12} />
-                              <span>{format(new Date(event.date), 'MMMM d, yyyy')}</span>
+                              <span>{formatDate(event.date, 'MMMM d, yyyy')}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-1">
                               <MapPin size={12} />
@@ -408,12 +437,21 @@ const UserDashboard = () => {
                           </div>
                           <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/5">
                             <span className="text-accent font-bold">${event.price}</span>
-                            <button 
-                              onClick={() => handleShareEvent(event._id)}
-                              className="p-1.5 bg-white/5 hover:bg-white/10 rounded border border-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer"
-                            >
-                              <Share2 size={12} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => handleShareEvent(event._id)}
+                                className="p-1.5 bg-white/5 hover:bg-white/10 rounded border border-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer"
+                                title="Share Event"
+                              >
+                                <Share2 size={12} />
+                              </button>
+                              <button 
+                                onClick={() => toggleWishlist(event)}
+                                className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded border border-red-500/20 text-[10px] font-bold transition-colors cursor-pointer"
+                              >
+                                Remove
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -573,7 +611,7 @@ const UserDashboard = () => {
                   </div>
                   <div>
                     <div className="text-gray-500 text-[10px]">DATE & TIME</div>
-                    <div className="font-semibold text-white mt-0.5 truncate">{format(new Date(selectedTicket.event?.date || ''), 'MMM d, yyyy • h:mm a')}</div>
+                    <div className="font-semibold text-white mt-0.5 truncate">{formatDate(selectedTicket.event?.date, 'MMM d, yyyy • h:mm a')}</div>
                   </div>
                   <div>
                     <div className="text-gray-500 text-[10px]">VENUE</div>

@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "cd client && npm install && npm run build"
+    "build": "cd client && npm install && npm run build",
+    "lint": "cd client && npm run lint",
+    "verify": "node scripts/verify-deployment.js"
   }
 }

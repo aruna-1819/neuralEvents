@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
+import { useWishlist } from '../context/WishlistContext';
 import { mockEvents } from '../data/mockEvents';
 
 const EventCardImage = ({ src, alt }) => {
@@ -45,13 +46,16 @@ const EventCardImage = ({ src, alt }) => {
 const Events = () => {
   const [events, setEvents] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   
   // Advanced Filter states
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedLocation, setSelectedLocation] = useState('All');
   const [maxPrice, setMaxPrice] = useState(10000);
   const [sortBy, setSortBy] = useState('date'); // 'date' | 'priceAsc' | 'priceDesc' | 'rating'
-  const [wishlist, setWishlist] = useState({});
+  const { isWishlisted, toggleWishlist } = useWishlist();
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -66,58 +70,112 @@ const Events = () => {
     fetchEvents();
   }, []);
 
-  const toggleWishlist = (id, e) => {
+  // Debouncing effect
+  useEffect(() => {
+    if (searchTerm.trim() !== debouncedSearchTerm.trim()) {
+      setIsSearching(true);
+    }
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setIsSearching(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Click outside to close suggestions
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (!e.target.closest('#search-container')) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, []);
+
+  const handleToggleWish = (e, event) => {
     e.preventDefault();
     e.stopPropagation();
-    setWishlist(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
+    toggleWishlist(event);
   };
 
   const resetFilters = () => {
     setSearchTerm('');
+    setDebouncedSearchTerm('');
     setSelectedCategory('All');
     setSelectedLocation('All');
     setMaxPrice(10000);
     setSortBy('date');
   };
 
+  // Suggestions computation
+  const suggestions = events.filter(e => {
+    if (!searchTerm.trim()) return false;
+    const q = searchTerm.toLowerCase();
+    return (
+      (e.title && e.title.toLowerCase().includes(q)) ||
+      (e.category && e.category.toLowerCase().includes(q)) ||
+      (e.venue && e.venue.toLowerCase().includes(q)) ||
+      (e.location && e.location.toLowerCase().includes(q)) ||
+      (e.organizer && e.organizer.toLowerCase().includes(q))
+    );
+  }).slice(0, 5);
+
   // Filter & Sort Logic
+  const formatDate = (dateStr, formatStr) => {
+    try {
+      if (!dateStr) return 'Date TBA';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return 'Date TBA';
+      return format(d, formatStr);
+    } catch {
+      return 'Date TBA';
+    }
+  };
+
   const getFilteredEvents = () => {
     let result = [...events];
 
-    // Search query filter
-    if (searchTerm.trim() !== '') {
-      result = result.filter(e => 
-        e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.venue.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+    // Search query filter using debouncedSearchTerm
+    if (debouncedSearchTerm.trim() !== '') {
+      result = result.filter(e => {
+        if (!e) return false;
+        const q = debouncedSearchTerm.toLowerCase();
+        const titleMatch = typeof e.title === 'string' ? e.title.toLowerCase().includes(q) : false;
+        const catMatch = typeof e.category === 'string' ? e.category.toLowerCase().includes(q) : false;
+        const venueMatch = typeof e.venue === 'string' ? e.venue.toLowerCase().includes(q) : false;
+        const locMatch = typeof e.location === 'string' ? e.location.toLowerCase().includes(q) : false;
+        const orgMatch = typeof e.organizer === 'string' ? e.organizer.toLowerCase().includes(q) : false;
+        return titleMatch || catMatch || venueMatch || locMatch || orgMatch;
+      });
     }
 
     // Category filter
     if (selectedCategory !== 'All') {
-      result = result.filter(e => e.category === selectedCategory);
+      result = result.filter(e => e && e.category === selectedCategory);
     }
 
     // Location filter
     if (selectedLocation !== 'All') {
-      result = result.filter(e => e.location === selectedLocation);
+      result = result.filter(e => e && e.location === selectedLocation);
     }
 
     // Price filter
-    result = result.filter(e => e.price <= maxPrice);
+    result = result.filter(e => e && typeof e.price === 'number' && e.price <= maxPrice);
 
     // Sorting logic
     if (sortBy === 'date') {
-      result.sort((a, b) => new Date(a.date) - new Date(b.date));
+      result.sort((a, b) => {
+        const da = a && a.date ? new Date(a.date).getTime() : 0;
+        const db = b && b.date ? new Date(b.date).getTime() : 0;
+        return da - db;
+      });
     } else if (sortBy === 'priceAsc') {
-      result.sort((a, b) => a.price - b.price);
+      result.sort((a, b) => (a?.price || 0) - (b?.price || 0));
     } else if (sortBy === 'priceDesc') {
-      result.sort((a, b) => b.price - a.price);
+      result.sort((a, b) => (b?.price || 0) - (a?.price || 0));
     } else if (sortBy === 'rating') {
-      result.sort((a, b) => b.rating - a.rating);
+      result.sort((a, b) => (b?.rating || 0) - (a?.rating || 0));
     }
 
     return result;
@@ -175,17 +233,77 @@ const Events = () => {
             </h3>
             
             {/* Search Input inside sidebar */}
-            <div className="space-y-2">
+            <div className="space-y-2" id="search-container">
               <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Search Keyword</label>
               <div className="relative">
                 <input 
                   type="text" 
                   placeholder="Enter keyword..." 
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-9 pr-4 focus:outline-none focus:border-primary text-xs text-white"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-9 pr-8 focus:outline-none focus:border-primary text-xs text-white"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
                 />
                 <Search className="absolute left-3 top-3 text-gray-500 w-3.5 h-3.5" />
+                
+                {/* Search Loader & Reset */}
+                <div className="absolute right-3 top-2.5 flex items-center gap-1.5">
+                  {isSearching ? (
+                    <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  ) : searchTerm ? (
+                    <button 
+                      onClick={() => {
+                        setSearchTerm('');
+                        setDebouncedSearchTerm('');
+                      }} 
+                      className="text-gray-500 hover:text-white cursor-pointer"
+                    >
+                      <X size={12} />
+                    </button>
+                  ) : null}
+                </div>
+
+                {/* Suggestions Dropdown */}
+                <AnimatePresence>
+                  {showSuggestions && searchTerm.trim() && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute left-0 right-0 mt-2 bg-[#0e0e16]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                    >
+                      {suggestions.length > 0 ? (
+                        <div className="p-2 space-y-1">
+                          <div className="px-3 py-1.5 text-[9px] font-bold text-gray-500 uppercase tracking-wider border-b border-white/5 mb-1">Suggestions</div>
+                          {suggestions.map((evt) => (
+                            <button
+                              key={evt._id}
+                              onClick={() => {
+                                setSearchTerm(evt.title);
+                                setDebouncedSearchTerm(evt.title);
+                                setShowSuggestions(false);
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-primary/10 rounded-xl transition-all duration-200 flex items-center gap-3 cursor-pointer group"
+                            >
+                              <img src={evt.banner} alt={evt.title} className="w-8 h-8 rounded-lg object-cover" />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-bold text-white group-hover:text-primary transition-colors truncate">{evt.title}</div>
+                                <div className="text-[9px] text-gray-400 truncate">{evt.category} • {evt.location}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-4 text-center text-xs text-gray-500">
+                          No suggestions found
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
 
@@ -273,68 +391,70 @@ const Events = () => {
                 className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"
               >
                 {filteredEvents.map((event, index) => {
-                  const formattedPrice = event.price === 0 ? 'FREE' : `₹${event.price.toLocaleString('en-IN')}`;
-                  const isWishlisted = !!wishlist[event._id];
+                  if (!event) return null;
+                  const formattedPrice = event.price === 0 ? 'FREE' : `₹${(event.price || 0).toLocaleString('en-IN')}`;
+                  const categoryText = (event.category || '').split(' ')[0] || 'Event';
 
                   return (
-                    <motion.div 
-                      layout
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      whileHover={{ y: -6 }}
-                      transition={{ duration: 0.25 }}
-                      key={event._id} 
-                      className="glass-panel rounded-2xl overflow-hidden group cursor-pointer border border-white/5 hover:border-primary/45 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)] transition-all flex flex-col justify-between"
-                    >
-                      <Link to={`/events/${event._id}`}>
-                        <EventCardImage src={event.banner} alt={event.title} />
-                          
-                          {/* Top Badges */}
-                          <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap max-w-[80%]">
-                            <span className="bg-primary/95 backdrop-blur-md text-white text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-white/10">
-                              {event.category.split(' ')[0]}
-                            </span>
-                            {event.price >= 2000 && (
-                              <span className="bg-amber-500/90 backdrop-blur-md text-black text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-amber-300/20">
-                                VIP
-                              </span>
-                            )}
-                          </div>
-
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ delay: index * 0.05 }}
+                    key={event._id}
+                    className="flex flex-col bg-[#0e0e16] rounded-2xl overflow-hidden border border-white/5 hover:border-primary/50 hover:shadow-[0_0_30px_rgba(139,92,246,0.15)] transition-all duration-300 group cursor-pointer"
+                  >
+                    <Link to={`/events/${event._id}`} className="flex flex-col h-full">
+                      
+                      {/* Image Container */}
+                      <div className="relative">
+                        <EventCardImage src={event.banner} alt={event.title || 'Event'} />
+                        
+                        {/* Category Tag */}
+                        <div className="absolute top-3 left-3">
+                          <span className="bg-primary/90 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shadow-lg">
+                            {categoryText}
+                          </span>
+                        </div>
+ 
                           {/* Wishlist Button */}
-                          <button 
-                            onClick={(e) => toggleWishlist(event._id, e)}
-                            className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 text-white hover:text-red-400 rounded-full border border-white/10 backdrop-blur-md transition-colors cursor-pointer"
+                          <motion.button 
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={(e) => handleToggleWish(e, event)}
+                            className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 hover:border-red-500/50 rounded-full border border-white/10 backdrop-blur-md transition-all cursor-pointer group/heart"
                           >
-                            <Heart size={12} className={isWishlisted ? 'fill-red-500 text-red-500' : ''} />
-                          </button>
-
+                            <Heart 
+                              size={12} 
+                              className={`transition-colors duration-300 ${isWishlisted(event._id) ? 'fill-red-500 text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'text-white group-hover/heart:text-red-400'}`} 
+                            />
+                          </motion.button>
                           {/* Price Tag */}
                           <div className="absolute bottom-3 right-3 px-3 py-1 rounded-lg bg-black/80 backdrop-blur-md border border-white/10 text-xs font-bold text-white shadow-lg">
                             {formattedPrice}
                           </div>
-
+                        </div>
+ 
                         <div className="p-5 flex-1 flex flex-col justify-between">
                           <div className="space-y-2">
                             <div className="flex items-center gap-1.5 text-[10px] text-primary font-mono font-bold">
                               <Star size={10} className="fill-primary" />
-                              <span>{event.rating} • {event.location}</span>
+                              <span>{event.rating || 0} • {event.location || 'TBA'}</span>
                             </div>
                             
                             <h3 className="text-sm font-bold text-white leading-snug group-hover:text-primary transition-colors line-clamp-1">
-                              {event.title}
+                              {event.title || 'Untitled Event'}
                             </h3>
                             
                             <p className="text-gray-400 text-[10px] leading-relaxed line-clamp-2">
-                              {event.description}
+                              {event.description || ''}
                             </p>
                           </div>
-
+ 
                           <div className="mt-4 pt-4 border-t border-white/5 space-y-2 text-gray-500 text-[10px] font-medium">
                             <div className="flex items-center gap-2">
                               <Calendar size={10} className="text-secondary" />
-                              <span>{format(new Date(event.date), 'MMM dd, yyyy • h:mm a')}</span>
+                              <span>{formatDate(event.date, 'MMM dd, yyyy • h:mm a')}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <MapPin size={10} className="text-secondary" />
@@ -349,12 +469,16 @@ const Events = () => {
               </motion.div>
             ) : (
               <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center py-20 glass-panel border border-white/5 rounded-3xl"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center py-20 glass-panel border border-white/10 rounded-3xl flex flex-col items-center justify-center space-y-4"
               >
-                <p className="text-gray-400 text-sm">No events found matching your selected criteria.</p>
-                <button onClick={resetFilters} className="mt-4 text-xs font-bold text-primary hover:underline">Clear Search & Filters</button>
+                <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-500 mb-2">
+                  <Search size={28} className="animate-pulse" />
+                </div>
+                <h3 className="text-lg font-bold text-white">No matching events found</h3>
+                <p className="text-gray-400 text-xs max-w-sm mx-auto">We couldn't find any events matching your keywords or selected filters. Try broadening your criteria or reset your filters.</p>
+                <button onClick={resetFilters} className="mt-4 px-4 py-2 bg-gradient-to-r from-primary to-secondary text-xs font-bold text-white rounded-xl shadow-lg hover:opacity-90 transition-all cursor-pointer">Clear Search & Filters</button>
               </motion.div>
             )}
           </AnimatePresence>

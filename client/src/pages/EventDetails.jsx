@@ -75,6 +75,17 @@ const EventDetails = () => {
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
 
+  const formatDate = (dateStr, formatStr) => {
+    try {
+      if (!dateStr) return 'Date TBA';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return 'Date TBA';
+      return format(d, formatStr);
+    } catch {
+      return 'Date TBA';
+    }
+  };
+
   // Payment states
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentStep, setPaymentStep] = useState('summary'); // 'summary' | 'options' | 'upi-qr' | 'processing' | 'success' | 'failed'
@@ -625,7 +636,7 @@ const EventDetails = () => {
                               </div>
                             </div>
                             <span className="text-[10px] text-gray-500 font-mono">
-                              {rev.createdAt ? format(new Date(rev.createdAt), 'MMM dd, yyyy') : 'Recently'}
+                              {rev.createdAt ? formatDate(rev.createdAt, 'MMM dd, yyyy') : 'Recently'}
                             </span>
                           </div>
                           
@@ -677,8 +688,8 @@ const EventDetails = () => {
                   <Calendar className="w-6 h-6 text-primary mt-1" />
                   <div>
                     <div className="font-medium text-white">Date and Time</div>
-                    <div>{format(new Date(event.date), 'MMMM d, yyyy')}</div>
-                    <div>{format(new Date(event.date), 'h:mm a')}</div>
+                    <div>{formatDate(event.date, 'MMMM d, yyyy')}</div>
+                    <div>{formatDate(event.date, 'h:mm a')}</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">

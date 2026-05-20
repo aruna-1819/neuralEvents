@@ -7,9 +7,19 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const userInfo = localStorage.getItem('userInfo');
-    if (userInfo) {
-      setUser(JSON.parse(userInfo));
+    try {
+      const userInfo = localStorage.getItem('userInfo');
+      if (userInfo) {
+        const parsed = JSON.parse(userInfo);
+        if (parsed && typeof parsed === 'object') {
+          setUser(parsed);
+        } else {
+          localStorage.removeItem('userInfo');
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to parse stored user info:", error.message);
+      localStorage.removeItem('userInfo');
     }
   }, []);
 
@@ -21,14 +31,20 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.warn("Using offline mock auth login fallback:", error.message);
       if (email === 'admin@neuralevents.com' && password === 'password123') {
-        const mockUser = { _id: 'admin-id', name: 'Admin User', email: 'admin@neuralevents.com', isAdmin: true, token: 'mock-jwt-token' };
+        const mockUser = { _id: 'admin-id', name: 'Admin User', email: 'admin@neuralevents.com', role: 'admin', isAdmin: true, token: 'mock-jwt-token' };
         setUser(mockUser);
         localStorage.setItem('userInfo', JSON.stringify(mockUser));
       } else {
-        const storedUsers = JSON.parse(localStorage.getItem('mockUsers') || '[]');
+        let storedUsers = [];
+        try {
+          storedUsers = JSON.parse(localStorage.getItem('mockUsers') || '[]');
+          if (!Array.isArray(storedUsers)) storedUsers = [];
+        } catch {
+          storedUsers = [];
+        }
         const found = storedUsers.find(u => u.email === email && u.password === password);
         if (found) {
-          const loggedUser = { _id: found._id, name: found.name, email: found.email, isAdmin: false, token: 'mock-jwt-token' };
+          const loggedUser = { _id: found._id, name: found.name, email: found.email, role: found.role || 'user', isAdmin: false, token: 'mock-jwt-token' };
           setUser(loggedUser);
           localStorage.setItem('userInfo', JSON.stringify(loggedUser));
         } else {
@@ -45,7 +61,13 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('userInfo', JSON.stringify(data));
     } catch (error) {
       console.warn("Using offline mock auth registration fallback:", error.message);
-      const storedUsers = JSON.parse(localStorage.getItem('mockUsers') || '[]');
+      let storedUsers = [];
+      try {
+        storedUsers = JSON.parse(localStorage.getItem('mockUsers') || '[]');
+        if (!Array.isArray(storedUsers)) storedUsers = [];
+      } catch {
+        storedUsers = [];
+      }
       const userExists = storedUsers.some(u => u.email === email) || email === 'admin@neuralevents.com';
       if (userExists) {
         throw new Error('User already exists');
@@ -56,6 +78,7 @@ export const AuthProvider = ({ children }) => {
         name,
         email,
         password,
+        role: 'user',
         isAdmin: false,
         token: 'mock-jwt-token'
       };
@@ -63,7 +86,7 @@ export const AuthProvider = ({ children }) => {
       storedUsers.push(newMockUser);
       localStorage.setItem('mockUsers', JSON.stringify(storedUsers));
       
-      const loggedUser = { _id: newMockUser._id, name: newMockUser.name, email: newMockUser.email, isAdmin: false, token: 'mock-jwt-token' };
+      const loggedUser = { _id: newMockUser._id, name: newMockUser.name, email: newMockUser.email, role: 'user', isAdmin: false, token: 'mock-jwt-token' };
       setUser(loggedUser);
       localStorage.setItem('userInfo', JSON.stringify(loggedUser));
     }

@@ -8,6 +8,7 @@ import userRoutes from './routes/userRoutes.js';
 import eventRoutes from './routes/eventRoutes.js';
 import ticketRoutes from './routes/ticketRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
+import wishlistRoutes from './routes/wishlistRoutes.js';
 
 dotenv.config();
 connectDB();
@@ -25,7 +26,13 @@ app.use(cors({
   origin: (origin, callback) => {
     // allow requests with no origin (mobile apps, Postman, curl)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    
+    const isLocalhost = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
+    const isVercel = origin.endsWith('.vercel.app');
+    
+    if (allowedOrigins.includes(origin) || isLocalhost || isVercel) {
+      return callback(null, true);
+    }
     callback(new Error(`CORS blocked: ${origin}`));
   },
   credentials: true
@@ -43,6 +50,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/wishlist', wishlistRoutes);
 
 // ─── Health check ───
 app.get('/', (req, res) => {

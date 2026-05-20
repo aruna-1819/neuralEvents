@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { User, LogOut } from 'lucide-react';
+import { User, LogOut, Heart } from 'lucide-react';
 import Logo from './Logo';
 
 const Navbar = () => {
@@ -23,6 +23,7 @@ const Navbar = () => {
           
           <div className="hidden md:flex space-x-8 items-center">
             <Link to="/events" className="text-gray-300 hover:text-white transition-colors text-sm font-medium">Browse Events</Link>
+            <Link to="/wishlist" className="text-gray-300 hover:text-red-400 transition-colors text-sm font-medium flex items-center gap-1.5"><Heart size={16} /> Wishlist</Link>
             <Link to="/about" className="text-gray-300 hover:text-white transition-colors text-sm font-medium">About Us</Link>
             <Link to="/contact" className="text-gray-300 hover:text-white transition-colors text-sm font-medium">Contact Us</Link>
             {user ? (
