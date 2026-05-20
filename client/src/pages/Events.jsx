@@ -10,9 +10,10 @@ import {
   Heart, 
   Filter, 
   X,
-  ArrowUpDown
+  ArrowUpDown,
+  Zap
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useWishlist } from '../context/WishlistContext';
 import { mockEvents } from '../data/mockEvents';
@@ -44,11 +45,14 @@ const EventCardImage = ({ src, alt }) => {
 };
 
 const Events = () => {
+  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [focusedSuggestionIndex, setFocusedSuggestionIndex] = useState(-1);
   
   // Advanced Filter states
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -56,6 +60,19 @@ const Events = () => {
   const [maxPrice, setMaxPrice] = useState(10000);
   const [sortBy, setSortBy] = useState('date'); // 'date' | 'priceAsc' | 'priceDesc' | 'rating'
   const { isWishlisted, toggleWishlist } = useWishlist();
+
+  const handleSelectSuggestion = (evt) => {
+    setIsNavigating(true);
+    setShowSuggestions(false);
+    setSearchTerm(evt.title);
+    setDebouncedSearchTerm(evt.title);
+    
+    setTimeout(() => {
+      navigate(`/event/${evt._id}`);
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      setIsNavigating(false);
+    }, 850);
+  };
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -244,8 +261,32 @@ const Events = () => {
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
                     setShowSuggestions(true);
+                    setFocusedSuggestionIndex(-1);
                   }}
-                  onFocus={() => setShowSuggestions(true)}
+                  onFocus={() => {
+                    setShowSuggestions(true);
+                    setFocusedSuggestionIndex(-1);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setFocusedSuggestionIndex((prev) => 
+                        prev < suggestions.length - 1 ? prev + 1 : prev
+                      );
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setFocusedSuggestionIndex((prev) => (prev > -1 ? prev - 1 : -1));
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (focusedSuggestionIndex >= 0 && focusedSuggestionIndex < suggestions.length) {
+                        handleSelectSuggestion(suggestions[focusedSuggestionIndex]);
+                      } else if (suggestions.length > 0) {
+                        handleSelectSuggestion(suggestions[0]);
+                      }
+                    } else if (e.key === 'Escape') {
+                      setShowSuggestions(false);
+                    }
+                  }}
                 />
                 <Search className="absolute left-3 top-3 text-gray-500 w-3.5 h-3.5" />
                 
@@ -258,6 +299,7 @@ const Events = () => {
                       onClick={() => {
                         setSearchTerm('');
                         setDebouncedSearchTerm('');
+                        setFocusedSuggestionIndex(-1);
                       }} 
                       className="text-gray-500 hover:text-white cursor-pointer"
                     >
@@ -276,20 +318,25 @@ const Events = () => {
                       className="absolute left-0 right-0 mt-2 bg-[#0e0e16]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
                     >
                       {suggestions.length > 0 ? (
-                        <div className="p-2 space-y-1">
+                        <div className="p-2 space-y-1 text-left">
                           <div className="px-3 py-1.5 text-[9px] font-bold text-gray-500 uppercase tracking-wider border-b border-white/5 mb-1">Suggestions</div>
-                          {suggestions.map((evt) => (
+                          {suggestions.map((evt, idx) => (
                             <button
                               key={evt._id}
-                              onClick={() => {
-                                setSearchTerm(evt.title);
-                                setDebouncedSearchTerm(evt.title);
-                                setShowSuggestions(false);
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleSelectSuggestion(evt);
                               }}
-                              className="w-full text-left px-3 py-2 hover:bg-primary/10 rounded-xl transition-all duration-200 flex items-center gap-3 cursor-pointer group"
+                              onClick={() => handleSelectSuggestion(evt)}
+                              onMouseEnter={() => setFocusedSuggestionIndex(idx)}
+                              className={`w-full text-left px-3 py-2 rounded-xl transition-all duration-200 flex items-center gap-3 cursor-pointer group ${
+                                idx === focusedSuggestionIndex 
+                                  ? 'bg-primary/25 border-l-2 border-primary pl-4' 
+                                  : 'hover:bg-primary/10'
+                              }`}
                             >
                               <img src={evt.banner} alt={evt.title} className="w-8 h-8 rounded-lg object-cover" />
-                              <div className="flex-1 min-w-0">
+                              <div className="flex-grow min-w-0">
                                 <div className="text-xs font-bold text-white group-hover:text-primary transition-colors truncate">{evt.title}</div>
                                 <div className="text-[9px] text-gray-400 truncate">{evt.category} • {evt.location}</div>
                               </div>
@@ -485,6 +532,42 @@ const Events = () => {
         </div>
 
       </div>
+
+      {/* Dynamic Cybernetic Redirection Overlay */}
+      <AnimatePresence>
+        {isNavigating && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/85 backdrop-blur-xl"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="text-center space-y-6 max-w-sm px-6 py-8 rounded-3xl border border-white/10 bg-white/[0.02] shadow-[0_0_50px_rgba(139,92,246,0.3)] relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-cyan-500/10 pointer-events-none" />
+              
+              {/* Spinner */}
+              <div className="relative w-20 h-20 mx-auto">
+                <div className="absolute inset-0 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                <div className="absolute inset-2 rounded-full border-4 border-cyan-500/10 border-b-cyan-400 animate-spin [animation-direction:reverse] [animation-duration:1.2s]" />
+                <div className="absolute inset-4 rounded-full bg-[#0a0a0f] flex items-center justify-center text-primary">
+                  <Zap className="w-6 h-6 animate-pulse" />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-lg font-display font-black tracking-wider text-white uppercase">Redirecting to Node</h3>
+                <p className="text-gray-400 text-[11px] font-mono tracking-widest uppercase animate-pulse">Syncing Event Coordinates...</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </motion.div>
   );

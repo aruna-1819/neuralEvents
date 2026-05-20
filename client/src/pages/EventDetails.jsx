@@ -19,12 +19,14 @@ import {
   FileText,
   Plus,
   Minus,
-  Sparkles
+  Sparkles,
+  Heart
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import AIRecommendations from '../components/AIRecommendations';
 import { mockEvents } from '../data/mockEvents';
+import { useWishlist } from '../context/WishlistContext';
 
 // Dynamic Zero-Dependency Confetti Effect
 const ConfettiEffect = () => {
@@ -74,6 +76,7 @@ const EventDetails = () => {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
+  const { isWishlisted, toggleWishlist } = useWishlist();
 
   const formatDate = (dateStr, formatStr) => {
     try {
@@ -256,6 +259,10 @@ const EventDetails = () => {
       fetchReviews();
     }
   };
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [id]);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -708,28 +715,45 @@ const EventDetails = () => {
                 </div>
               </div>
 
-              {success ? (
-                <div className="space-y-3">
-                  <div className="w-full py-4 rounded-xl bg-green-500/20 text-green-400 font-bold flex justify-center items-center gap-2 border border-green-500/30">
-                    <CheckCircle2 /> Ticket Booked!
-                  </div>
-                  <button 
-                    onClick={() => navigate('/dashboard')}
-                    className="w-full py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all border border-white/10 flex justify-center items-center gap-2 cursor-pointer"
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  {success ? (
+                    <div className="flex-1 space-y-3">
+                      <div className="w-full py-4 rounded-xl bg-green-500/20 text-green-400 font-bold flex justify-center items-center gap-2 border border-green-500/30">
+                        <CheckCircle2 /> Ticket Booked!
+                      </div>
+                      <button 
+                        onClick={() => navigate('/dashboard')}
+                        className="w-full py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all border border-white/10 flex justify-center items-center gap-2 cursor-pointer"
+                      >
+                        Go to Dashboard
+                      </button>
+                    </div>
+                  ) : (
+                    <motion.button 
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleOpenBooking}
+                      className="flex-grow py-4 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-bold text-lg hover:opacity-90 transition-opacity flex justify-center items-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+                    >
+                      <Ticket /> Book Now
+                    </motion.button>
+                  )}
+                  
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => toggleWishlist(event)}
+                    className={`p-4 rounded-xl bg-white/5 border hover:bg-white/10 flex items-center justify-center transition-all cursor-pointer group ${
+                      isWishlisted(event._id) ? 'border-red-500/40' : 'border-white/10 hover:border-red-500/30'
+                    }`}
                   >
-                    Go to Dashboard
-                  </button>
+                    <Heart className={`w-6 h-6 transition-all ${
+                      isWishlisted(event._id) ? 'fill-red-500 text-red-500 scale-110 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'text-gray-400 group-hover:text-red-400'
+                    }`} />
+                  </motion.button>
                 </div>
-              ) : (
-                <motion.button 
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleOpenBooking}
-                  className="w-full py-4 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-bold text-lg hover:opacity-90 transition-opacity flex justify-center items-center gap-2 cursor-pointer"
-                >
-                  <Ticket /> Book Now
-                </motion.button>
-              )}
+              </div>
             </motion.div>
           </div>
         </div>
